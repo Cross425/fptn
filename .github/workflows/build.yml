@@ -1,0 +1,116 @@
+name: Build fptn-client-cli (.ipk) for AX3000T
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: openwrt/sdk:aarch64_cortex-a53-24.10.0
+      options: --user root
+
+    steps:
+      - name: Install tools
+        shell: bash
+        run: |
+          set -eux
+          apt-get update
+          apt-get install -y python3 python3-pip git ca-certificates cmake ninja-build make tar gzip xz-utils
+
+      - name: Checkout fptn sources
+        uses: actions/checkout@v4
+        with:
+          repository: batchar2/fptn
+          fetch-depth: 0
+          path: fptn
+
+      - name: Checkout packaging repo files
+        uses: actions/checkout@v4
+        with:
+          path: pkg
+
+      - name: Install Conan
+        shell: bash
+        run: |
+          set -eux
+          pip3 install --break-system-packages conan
+          conan profile detect --force
+
+      - name: Create Conan profile using OpenWrt toolchain (Conan v2 compatible)
+        shell: bash
+        run: |
+          set -eux
+
+          TOOLCHAIN_DIR="$(find / -type d -path '*staging_dir/toolchain-*' -print -quit 2>/dev/null)"
+          TOOLCHAIN_BIN="${TOOLCHAIN_DIR}/bin"
+
+          CC_BIN="$(find "${TOOLCHAIN_BIN}" -maxdepth 1 -name '*openwrt-linux*-gcc' -print -quit)"
+          CXX_BIN="$(find "${TOOLCHAIN_BIN}" -maxdepth 1 -name '*openwrt-linux*-g++' -print -quit)"
+
+          GCC_VER_FULL="$(${CC_BIN} -dumpfullversion -dumpversion)"
+          GCC_VER_MAJOR="${GCC_VER_FULL%%.*}"
+
+          mkdir -p ~/.conan2/profiles
+          cat > ~/.conan2/profiles/openwrt-a53 <<EOF
+          [settings]
+          os=Linux
+          arch=armv8
+          compiler=gcc
+          compiler.version=${GCC_VER_MAJOR}
+          compiler.libcxx=libstdc++11
+          build_type=Release
+
+          [conf]
+          tools.build:compiler_executables={'c':'${CC_BIN}','cpp':'${CXX_BIN}'}
+          EOF
+
+          cat ~/.conan2/profiles/openwrt-a53
+
+      - name: Build (Conan + CMake)
+        shell: bash
+        run: |
+          set -eux
+          cd fptn
+          conan install .             -pr:h=openwrt-a53             -pr:b=default             -o with_gui_client=False             -o build_only_fptn_lib=False             --build=missing
+
+          cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake
+          cmake --build build
+
+          test -f build/src/fptn-client/fptn-client-cli
+
+      - name: Pack .ipk
+        shell: bash
+        run: |
+          set -eux
+          PKGDIR="$PWD/ipkroot"
+          mkdir -p "$PKGDIR"/{CONTROL,usr/bin,etc/init.d,etc/fptn-client}
+
+          cp fptn/build/src/fptn-client/fptn-client-cli "$PKGDIR/usr/bin/"
+          chmod +x "$PKGDIR/usr/bin/fptn-client-cli"
+
+          cp pkg/files/fptn-client.init "$PKGDIR/etc/init.d/fptn-client"
+          chmod +x "$PKGDIR/etc/init.d/fptn-client"
+
+          cp pkg/files/client.conf "$PKGDIR/etc/fptn-client/client.conf"
+
+          cat > "$PKGDIR/CONTROL/control" <<'EOF'
+          Package: fptn-client-cli
+          Version: 0.3.34-1
+          Architecture: aarch64_cortex-a53
+          Maintainer: you
+          Section: net
+          Priority: optional
+          Depends: libc, libstdcpp, ip-full, iptables, kmod-tun
+          Description: FPTN client CLI for OpenWrt (AX3000T)
+          EOF
+
+          opkg-build "$PKGDIR" .
+          ls -la *.ipk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fptn-client-cli_ax3000t_ipk
+          path: "*.ipk"
