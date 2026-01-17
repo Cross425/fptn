@@ -8,7 +8,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: openwrt/sdk:aarch64_cortex-a53-24.10.0
+  image: openwrt/sdk:aarch64_cortex-a53-24.10.0
+  options: --user root
 
     steps:
       - name: Install tools
