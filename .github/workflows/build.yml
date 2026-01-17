@@ -11,7 +11,7 @@ jobs:
   image: openwrt/sdk:aarch64_cortex-a53-24.10.0
   options: --user root
 
-    steps:
+ steps:
       - name: Install tools
         shell: bash
         run: |
