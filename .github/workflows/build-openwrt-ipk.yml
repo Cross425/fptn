@@ -1,0 +1,83 @@
+name: build fptn-client-cli (.ipk) for OpenWrt 24.10 filogic (aarch64_cortex-a53)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build-openwrt-ipk.yml"
+      - "openwrt/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install deps
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ca-certificates curl wget xz-utils tar gzip file git make g++ \
+            python3 python3-pip rsync unzip
+
+      - name: Download OpenWrt SDK (auto-discovery, robust)
+        run: |
+          set -euxo pipefail
+          BASE_URL="https://downloads.openwrt.org/releases/24.10.5/targets/mediatek/filogic/"
+          echo "BASE_URL=$BASE_URL"
+
+          # Pull directory listing HTML (dir-index.cgi) and extract the first SDK tarball link.
+          html="$(curl -fsSL "$BASE_URL")"
+          sdk="$(printf "%s" "$html" | grep -Eo 'openwrt-sdk-[^"<> ]+\.tar\.xz' | head -n1 || true)"
+
+          if [ -z "$sdk" ]; then
+            echo "SDK link not found on page, dumping first 120 lines for debugging:"
+            printf "%s" "$html" | sed -n '1,120p'
+            exit 1
+          fi
+
+          SDK_URL="${BASE_URL}${sdk}"
+          echo "SDK_URL=$SDK_URL"
+
+          mkdir -p sdk
+          # Retry with redirects; OpenWrt sometimes rate-limits or mirrors behave differently.
+          curl -fL --retry 5 --retry-delay 2 -o sdk/sdk.tar.xz "$SDK_URL"
+          tar -xJf sdk/sdk.tar.xz -C sdk --strip-components=1
+
+          echo "SDK extracted:"
+          ls -la sdk | head
+
+      - name: Prepare package
+        run: |
+          set -eux
+          mkdir -p sdk/package/fptn-client-cli
+          rsync -a openwrt/package/fptn-client-cli/ sdk/package/fptn-client-cli/
+
+      - name: Update feeds & install
+        run: |
+          set -eux
+          cd sdk
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Build ipk
+        run: |
+          set -eux
+          cd sdk
+          make defconfig
+          make package/fptn-client-cli/compile -j"$(nproc)" V=s
+
+      - name: Collect artifacts
+        run: |
+          set -eux
+          mkdir -p out
+          find sdk/bin/packages -name 'fptn-client-cli_*.ipk' -print -exec cp -v {} out/ \;
+          ls -la out
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fptn-client-cli-ipk
+          path: out/*.ipk
