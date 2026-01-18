@@ -1,0 +1,125 @@
+name: Build prebuilt fptn-client-cli + package .apk via OpenWrt SDK (Plan A)
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    env:
+      SDK_URL: https://downloads.openwrt.org/releases/25.12.0-rc2/targets/mediatek/filogic/openwrt-sdk-25.12.0-rc2-mediatek-filogic_gcc-14.3.0_musl.Linux-x86_64.tar.zst
+      TOOLCHAIN_URL: https://downloads.openwrt.org/releases/25.12.0-rc2/targets/mediatek/filogic/openwrt-toolchain-25.12.0-rc2-mediatek-filogic_gcc-14.3.0_musl.Linux-x86_64.tar.zst
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build python3 python3-pip git \
+            xz-utils zstd curl rsync pkg-config ca-certificates file
+          python3 -m pip install -U pip
+          python3 -m pip install conan==1.59.0
+          conan profile new default --detect --force
+
+      - name: Download OpenWrt toolchain (for cross-build)
+        run: |
+          set -eux
+          mkdir -p toolchain
+          curl -L "$TOOLCHAIN_URL" -o toolchain/toolchain.tar.zst
+          tar --use-compress-program=unzstd -xf toolchain/toolchain.tar.zst -C toolchain
+          TC_DIR="$(find toolchain -maxdepth 1 -type d -name 'openwrt-toolchain-*' -print -quit)"
+          echo "TC_DIR=$TC_DIR" >> $GITHUB_ENV
+
+      - name: Create Conan host profile (openwrt-a53)
+        run: |
+          set -eux
+          CC="$(find "$TC_DIR" -type f -name 'aarch64-openwrt-linux-musl-gcc' -print -quit)"
+          CXX="$(find "$TC_DIR" -type f -name 'aarch64-openwrt-linux-musl-g++' -print -quit)"
+          test -x "$CC"
+          test -x "$CXX"
+          mkdir -p "$HOME/.conan/profiles"
+          cat > "$HOME/.conan/profiles/openwrt-a53" <<EOF
+          [settings]
+          os=Linux
+          arch=armv8
+          compiler=gcc
+          compiler.version=14
+          compiler.libcxx=libstdc++11
+          build_type=Release
+          [env]
+          CC=$CC
+          CXX=$CXX
+          EOF
+
+      - name: Build fptn-client-cli (cross, internet allowed)
+        run: |
+          set -eux
+          rm -rf build-prebuilt
+          mkdir -p build-prebuilt
+          cd build-prebuilt
+          git clone --depth 1 https://github.com/batchar2/fptn.git
+          cd fptn
+          conan install . -pr:h=openwrt-a53 -pr:b=default --build=missing \
+            -o with_gui_client=False -o build_only_fptn_lib=False
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$PWD/conan_toolchain.cmake"
+          cmake --build build -j"$(nproc)"
+          BIN="$(find build -maxdepth 4 -type f -name 'fptn-client-cli' -perm -111 -print -quit)"
+          test -n "$BIN"
+          echo "BIN=$BIN" >> $GITHUB_ENV
+
+      - name: Stage prebuilt binary into package files/
+        run: |
+          set -eux
+          install -m 0755 "$GITHUB_WORKSPACE/build-prebuilt/fptn/$BIN" \
+            "$GITHUB_WORKSPACE/openwrt/package/fptn-client-cli/files/usr/bin/fptn-client-cli"
+          file "$GITHUB_WORKSPACE/openwrt/package/fptn-client-cli/files/usr/bin/fptn-client-cli"
+
+      - name: Download OpenWrt SDK (for correct .apk format)
+        run: |
+          set -eux
+          mkdir -p sdk
+          curl -L "$SDK_URL" -o sdk/sdk.tar.zst
+          tar --use-compress-program=unzstd -xf sdk/sdk.tar.zst -C sdk
+          SDK_DIR="$(find sdk -maxdepth 1 -type d -name 'openwrt-sdk-*' -print -quit)"
+          echo "SDK_DIR=$SDK_DIR" >> $GITHUB_ENV
+
+      - name: Feeds
+        run: |
+          set -eux
+          cd "$SDK_DIR"
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Add local package to SDK
+        run: |
+          set -eux
+          cd "$SDK_DIR"
+          mkdir -p package/fptn-client-cli
+          rsync -a "$GITHUB_WORKSPACE/openwrt/package/fptn-client-cli/" package/fptn-client-cli/
+
+      - name: Build package (.apk only, no conan inside SDK)
+        run: |
+          set -eux
+          cd "$SDK_DIR"
+          make defconfig
+          make package/fptn-client-cli/compile V=s -j"$(nproc)"
+          make package/fptn-client-cli/install V=s
+
+      - name: Collect artifacts
+        run: |
+          set -eux
+          mkdir -p artifacts
+          find "$SDK_DIR/bin/packages" -type f -name '*.apk' -print -exec cp -v {} artifacts/ \;
+          ls -la artifacts
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fptn-client-cli-apk
+          path: artifacts/*
