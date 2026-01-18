@@ -38,7 +38,7 @@ define Build/Compile
 	cd $(PKG_BUILD_DIR) && \
 	  conan install . \
 	    --profile:host=openwrt-a53 \
-	    --profile:build=default \
+	    --profile:build=openwrt-a53 \
 	    -o with_gui_client=False \
 	    -o build_only_fptn_lib=False \
 	    --build=missing
