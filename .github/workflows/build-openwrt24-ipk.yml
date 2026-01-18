@@ -1,0 +1,147 @@
+name: build-openwrt24-ipk
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install build deps
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ca-certificates curl git xz-utils zstd \
+            build-essential cmake ninja-build pkg-config \
+            python3-pip
+
+      - name: Install Conan 1.59
+        run: |
+          set -eux
+          python -m pip install --upgrade pip
+          # Conan 1.x works best with Python <= 3.10
+          python -m pip install 'conan==1.59.0'
+          conan --version
+
+      - name: Download OpenWrt toolchain + SDK (24.10.5, mediatek/filogic)
+        run: |
+          set -euxo pipefail
+          mkdir -p toolchain sdk
+
+          TC_URL='https://downloads.openwrt.org/releases/24.10.5/targets/mediatek/filogic/openwrt-toolchain-24.10.5-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64.tar.zst'
+          SDK_URL='https://downloads.openwrt.org/releases/24.10.5/targets/mediatek/filogic/openwrt-sdk-24.10.5-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64.tar.zst'
+
+          curl -fL "$TC_URL" -o toolchain/toolchain.tar.zst
+          tar --use-compress-program=unzstd -xf toolchain/toolchain.tar.zst -C toolchain
+
+          curl -fL "$SDK_URL" -o sdk/sdk.tar.zst
+          tar --use-compress-program=unzstd -xf sdk/sdk.tar.zst -C sdk
+
+          echo "TC_DIR=$(find toolchain -maxdepth 1 -type d -name 'openwrt-toolchain-*' -print -quit)" >> $GITHUB_ENV
+          echo "SDK_DIR=$(find sdk -maxdepth 1 -type d -name 'openwrt-sdk-*' -print -quit)" >> $GITHUB_ENV
+
+      - name: Build fptn-client-cli with OpenWrt toolchain (musl)
+        env:
+          # Adjust these if you need a different target
+          CC_TRIPLE: aarch64-openwrt-linux-musl
+        run: |
+          set -euxo pipefail
+
+          export PATH="$TC_DIR/bin:$PATH"
+
+          # Prefer the exact compiler binaries shipped by OpenWrt toolchain.
+          export CC="$TC_DIR/bin/${CC_TRIPLE}-gcc"
+          export CXX="$TC_DIR/bin/${CC_TRIPLE}-g++"
+          export AR="$TC_DIR/bin/${CC_TRIPLE}-ar"
+          export RANLIB="$TC_DIR/bin/${CC_TRIPLE}-ranlib"
+          export STRIP="$TC_DIR/bin/${CC_TRIPLE}-strip"
+
+          "$CC" -v
+
+          # Conan 1.x: create a profile pinned to the cross toolchain
+          mkdir -p ~/.conan/profiles
+          cat > ~/.conan/profiles/openwrt-a53 <<EOF
+          [settings]
+          os=Linux
+          arch=armv8
+          compiler=gcc
+          compiler.version=13
+          compiler.libcxx=libstdc++11
+          build_type=Release
+
+          [env]
+          CC=$CC
+          CXX=$CXX
+          AR=$AR
+          RANLIB=$RANLIB
+          STRIP=$STRIP
+          EOF
+
+          # Build (your repo should contain CMakeLists.txt at root)
+          rm -rf build
+          mkdir -p build
+          cd build
+
+          conan install .. -pr openwrt-a53 -s build_type=Release --build=missing
+
+          cmake .. -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER="$CC" \
+            -DCMAKE_CXX_COMPILER="$CXX"
+
+          ninja
+
+          # Put resulting binary in a known place
+          mkdir -p ../out
+          # If your binary has a different name, change it here:
+          cp -v fptn-client-cli ../out/ || cp -v */fptn-client-cli ../out/
+          "$STRIP" ../out/fptn-client-cli || true
+
+      - name: Package as .ipk using OpenWrt SDK opkg-build
+        run: |
+          set -euxo pipefail
+
+          OPKGBUILD="$SDK_DIR/staging_dir/host/bin/opkg-build"
+          test -x "$OPKGBUILD"
+
+          PKGROOT="$PWD/pkgroot"
+          rm -rf "$PKGROOT"
+          mkdir -p "$PKGROOT/CONTROL" "$PKGROOT/usr/bin"
+
+          # control file MUST be LF, and debian-binary MUST be exactly "2.0\n"
+          cat > "$PKGROOT/CONTROL/control" <<'EOF'
+          Package: fptn-client-cli
+          Version: 0.3.34-1
+          Architecture: aarch64_cortex-a53
+          Maintainer: you
+          Section: net
+          Priority: optional
+          Depends: libc, libstdcpp
+          Description: FPTN client CLI for OpenWrt 24.10 (mediatek/filogic)
+          EOF
+
+          install -m 0755 out/fptn-client-cli "$PKGROOT/usr/bin/fptn-client-cli"
+
+          rm -rf dist
+          mkdir -p dist
+          "$OPKGBUILD" -o 0 -g 0 "$PKGROOT" dist
+
+          ls -lah dist
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fptn-openwrt24-ipk
+          path: |
+            dist/*.ipk
+            out/fptn-client-cli
