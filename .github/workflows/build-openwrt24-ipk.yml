@@ -1,0 +1,128 @@
+name: build-openwrt24-ipk (toolchain path fix)
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install deps
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build pkg-config \
+            wget curl xz-utils zstd unzip git rsync file
+
+      - name: Install Conan 1.59
+        run: |
+          set -eux
+          python -m pip install --upgrade pip
+          pip install "conan==1.59.0"
+          conan profile new default --detect --force
+
+      - name: Download OpenWrt toolchain (24.10.5, mediatek/filogic)
+        run: |
+          set -euxo pipefail
+          BASE_URL="https://downloads.openwrt.org/releases/24.10.5/targets/mediatek/filogic/"
+          html="$(curl -fsSL "$BASE_URL")"
+          tc="$(printf "%s" "$html" | grep -Eo 'openwrt-toolchain-24\.10\.5-[^"<> ]+\.tar\.(zst|xz)' | head -n1)"
+          if [ -z "$tc" ]; then
+            echo "Toolchain archive not found"
+            printf "%s" "$html" | sed -n '1,140p'
+            exit 1
+          fi
+          echo "TOOLCHAIN_ARCHIVE=$tc"
+          mkdir -p toolchain
+          if echo "$tc" | grep -q '\.tar\.zst$'; then
+            curl -fL --retry 5 --retry-delay 2 -o toolchain/tc.tar.zst "$BASE_URL$tc"
+            tar --use-compress-program=unzstd -xf toolchain/tc.tar.zst -C toolchain
+          else
+            curl -fL --retry 5 --retry-delay 2 -o toolchain/tc.tar.xz "$BASE_URL$tc"
+            tar -xJf toolchain/tc.tar.xz -C toolchain
+          fi
+          TC_DIR="$(find toolchain -maxdepth 1 -type d -name 'openwrt-toolchain-*' -print -quit)"
+          test -n "$TC_DIR"
+          echo "TC_DIR=$TC_DIR" >> $GITHUB_ENV
+
+      - name: Resolve toolchain binaries (no hardcoded gcc names)
+        run: |
+          set -eux
+          # Find the bin directory that contains target-prefixed tools
+          TC_BIN="$(find "$TC_DIR" -type d -name bin -print | head -n1)"
+          test -n "$TC_BIN"
+          echo "TC_BIN=$TC_BIN" >> $GITHUB_ENV
+          echo "$TC_BIN" >> $GITHUB_PATH
+
+          # Robustly discover tool names (some toolchains ship *.bin wrappers)
+          CC="$(find "$TC_BIN" -maxdepth 1 -type f -name 'aarch64-*-linux-musl-gcc*' -perm -111 -print -quit)"
+          CXX="$(find "$TC_BIN" -maxdepth 1 -type f -name 'aarch64-*-linux-musl-g++*' -perm -111 -print -quit)"
+          AR="$(find "$TC_BIN" -maxdepth 1 -type f -name 'aarch64-*-linux-musl-ar*' -perm -111 -print -quit)"
+          STRIP="$(find "$TC_BIN" -maxdepth 1 -type f -name 'aarch64-*-linux-musl-strip*' -perm -111 -print -quit)"
+
+          test -n "$CC"
+          test -n "$CXX"
+          echo "CC=$CC" >> $GITHUB_ENV
+          echo "CXX=$CXX" >> $GITHUB_ENV
+          [ -n "$AR" ] && echo "AR=$AR" >> $GITHUB_ENV || true
+          [ -n "$STRIP" ] && echo "STRIP=$STRIP" >> $GITHUB_ENV || true
+
+          echo "Resolved:"
+          echo "  CC=$CC"
+          echo "  CXX=$CXX"
+          echo "  AR=${AR:-}"
+          echo "  STRIP=${STRIP:-}"
+          "$CC" -v || true
+
+      - name: Cross-build fptn-client-cli (Conan deps allowed)
+        run: |
+          set -eux
+          rm -rf build-prebuilt
+          mkdir -p build-prebuilt
+          cd build-prebuilt
+          git clone --depth 1 https://github.com/batchar2/fptn.git
+          cd fptn
+
+          mkdir -p "$HOME/.conan/profiles"
+          cat > "$HOME/.conan/profiles/openwrt-a53" <<EOF
+          [settings]
+          os=Linux
+          arch=armv8
+          compiler=gcc
+          compiler.version=13
+          compiler.libcxx=libstdc++11
+          build_type=Release
+          [env]
+          CC=$CC
+          CXX=$CXX
+          EOF
+
+          conan install . -pr:h=openwrt-a53 -pr:b=default --build=missing \
+            -o with_gui_client=False -o build_only_fptn_lib=False \
+            -g cmake -g cmake_toolchain
+
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$PWD/conan_toolchain.cmake"
+          cmake --build build -j"$(nproc)"
+
+          BIN="$(find build -maxdepth 5 -type f -name 'fptn-client-cli' -perm -111 -print -quit)"
+          test -n "$BIN"
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          install -m 0755 "$BIN" "$GITHUB_WORKSPACE/out/fptn-client-cli"
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fptn-client-cli-binary
+          path: out/fptn-client-cli
