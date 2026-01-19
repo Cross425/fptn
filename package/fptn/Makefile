@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=fptn
 PKG_VERSION:=0.3.35
-PKG_RELEASE:=4
+PKG_RELEASE:=5
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/batchar2/fptn.git
@@ -23,14 +23,14 @@ define Package/fptn
     +libpthread \
     +zlib \
     +protobuf \
-    +libprotobuf-lite \
+    +libprotobuf \
     +libatomic \
     +kmod-tun \
     +ca-bundle
 endef
 
 define Package/fptn/description
-  FPTN VPN client for OpenWrt (client-only, OpenSSL + Protobuf-lite).
+  FPTN VPN client for OpenWrt (client-only, OpenSSL + Protobuf).
 endef
 
 CMAKE_OPTIONS += \
