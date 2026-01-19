@@ -1,0 +1,23 @@
+name: build-openwrt-ipk
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build with OpenWrt SDK (24.10.0, mediatek/filogic)
+        uses: openwrt/gh-action-sdk@v7
+        with:
+          sdk_url: https://downloads.openwrt.org/releases/24.10.0/targets/mediatek/filogic/openwrt-sdk-24.10.0-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64.tar.zst
+          package: fptn
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fptn-ipk
+          path: bin/packages/**/fptn_*.ipk
