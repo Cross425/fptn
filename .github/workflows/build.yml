@@ -11,16 +11,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Disable LDAP in curl (OpenWrt 24.10 workaround)
-        run: |
-          sed -i 's/depends on PACKAGE_libcurl/depends on PACKAGE_libcurl \&\& BROKEN/g'             feeds/packages/net/curl/Config.in
-
       - name: Build with OpenWrt SDK (24.10.0, mediatek/filogic)
         uses: openwrt/gh-action-sdk@v7
         with:
           sdk_url: https://downloads.openwrt.org/releases/24.10.0/targets/mediatek/filogic/openwrt-sdk-24.10.0-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64.tar.zst
           package: fptn
           make_flags: V=s
+          pre_build: |
+            sed -i 's/depends on PACKAGE_libcurl/depends on PACKAGE_libcurl \&\& BROKEN/g' \
+              feeds/packages/net/curl/Config.in
 
       - uses: actions/upload-artifact@v4
         with:
