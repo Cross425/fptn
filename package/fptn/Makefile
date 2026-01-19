@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=fptn
 PKG_VERSION:=0.3.35
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/batchar2/fptn.git
@@ -17,11 +17,20 @@ define Package/fptn
   SECTION:=net
   CATEGORY:=Network
   TITLE:=FPTN client (OpenWrt)
-  DEPENDS:=+libstdcpp +libopenssl +libpthread +zlib +kmod-tun +ca-bundle
+  DEPENDS:=\
+    +libstdcpp \
+    +libopenssl \
+    +libpthread \
+    +zlib \
+    +libprotobuf \
+    +protobuf \
+    +libatomic \
+    +kmod-tun \
+    +ca-bundle
 endef
 
 define Package/fptn/description
-  FPTN VPN client for OpenWrt (client-only, OpenSSL backend).
+  FPTN VPN client for OpenWrt (client-only, OpenSSL + Protobuf).
 endef
 
 CMAKE_OPTIONS += \
@@ -31,7 +40,9 @@ CMAKE_OPTIONS += \
   -DBUILD_GUI=OFF \
   -DBUILD_TESTS=OFF \
   -DUSE_CONAN=OFF \
-  -DUSE_BORINGSSL=OFF
+  -DUSE_BORINGSSL=OFF \
+  -DProtobuf_USE_STATIC_LIBS=OFF \
+  -Dprotobuf_MODULE_COMPATIBLE=ON
 
 define Package/fptn/install
 	$(INSTALL_DIR) $(1)/usr/sbin
