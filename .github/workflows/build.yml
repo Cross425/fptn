@@ -19,7 +19,7 @@ jobs:
           make_flags: V=s
           pre_build: |
             sed -i 's/depends on PACKAGE_libcurl/depends on PACKAGE_libcurl \&\& BROKEN/g' \
-              feeds/packages/net/curl/Config.in
+              /builder/feeds/packages/net/curl/Config.in
 
       - uses: actions/upload-artifact@v4
         with:
