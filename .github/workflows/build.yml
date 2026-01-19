@@ -21,11 +21,14 @@ jobs:
             set -eux
             FILE=/builder/feeds/packages/net/curl/Config.in
             test -f "$FILE"
-            # Break the Kconfig recursion: LIBCURL_LDAP <-> PACKAGE_libcurl
-            # Patch ONLY inside the LIBCURL_LDAP config block.
-            sed -i '/^config LIBCURL_LDAP$/,/^config /{s/\tdepends on PACKAGE_libcurl/\tdepends on BROKEN/}' "$FILE"
-            # Print the patched block for debugging
-            awk 'BEGIN{p=0} /^config LIBCURL_LDAP$/{p=1} p{print} /^config / && NR>1 && p && $2!="LIBCURL_LDAP"{exit}' "$FILE" || true
+
+            # Патчим ТОЛЬКО блок LIBCURL_LDAP и ловим и табы, и пробелы
+            sed -i '/^config LIBCURL_LDAP$/,/^config /{
+              s/^[[:space:]]*depends on PACKAGE_libcurl.*$/	depends on BROKEN/
+            }' "$FILE"
+
+            # Покажем строку, чтобы убедиться что замена реально произошла
+            grep -n "config LIBCURL_LDAP" -A6 "$FILE" | sed -n '1,20p'
 
       - uses: actions/upload-artifact@v4
         with:
