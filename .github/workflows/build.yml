@@ -22,13 +22,11 @@ jobs:
             FILE=/builder/feeds/packages/net/curl/Config.in
             test -f "$FILE"
 
-            # Патчим ТОЛЬКО блок LIBCURL_LDAP и ловим и табы, и пробелы
-            sed -i '/^config LIBCURL_LDAP$/,/^config /{
-              s/^[[:space:]]*depends on PACKAGE_libcurl.*$/	depends on BROKEN/
-            }' "$FILE"
+            # Удаляем строку с LIBCURL_LDAP
+            sed -i '/^config LIBCURL_LDAP$/,/^config /d' "$FILE"
 
-            # Покажем строку, чтобы убедиться что замена реально произошла
-            grep -n "config LIBCURL_LDAP" -A6 "$FILE" | sed -n '1,20p'
+            # Печатаем результат, чтобы удостовериться в удалении
+            grep -n "config LIBCURL_LDAP" -A6 "$FILE" || echo "LIBCURL_LDAP удалён"
 
       - uses: actions/upload-artifact@v4
         with:
