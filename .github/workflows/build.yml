@@ -18,7 +18,14 @@ jobs:
           package: fptn
           make_flags: V=s
           pre_build: |
-            sed -i 's/config LIBCURL_LDAP/config LIBCURL_LDAP\n\tbool "LDAP support (disabled)"\n\tdepends on BROKEN/g'               /builder/feeds/packages/net/curl/Config.in
+            set -eux
+            FILE=/builder/feeds/packages/net/curl/Config.in
+            test -f "$FILE"
+            # Break the Kconfig recursion: LIBCURL_LDAP <-> PACKAGE_libcurl
+            # Patch ONLY inside the LIBCURL_LDAP config block.
+            sed -i '/^config LIBCURL_LDAP$/,/^config /{s/\tdepends on PACKAGE_libcurl/\tdepends on BROKEN/}' "$FILE"
+            # Print the patched block for debugging
+            awk 'BEGIN{p=0} /^config LIBCURL_LDAP$/{p=1} p{print} /^config / && NR>1 && p && $2!="LIBCURL_LDAP"{exit}' "$FILE" || true
 
       - uses: actions/upload-artifact@v4
         with:
