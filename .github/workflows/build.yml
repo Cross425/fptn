@@ -12,23 +12,53 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build with OpenWrt SDK (24.10.0, mediatek/filogic)
-        uses: openwrt/gh-action-sdk@v7
-        with:
-          sdk_url: https://downloads.openwrt.org/releases/24.10.0/targets/mediatek/filogic/openwrt-sdk-24.10.0-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64.tar.zst
-          package: fptn
-          make_flags: V=s
-          pre_build: |
-            set -eux
-            FILE=/builder/feeds/packages/net/curl/Config.in
-            test -f "$FILE"
+        shell: bash
+        run: |
+          set -euxo pipefail
 
-            # Удаляем строку с LIBCURL_LDAP
-            sed -i '/^config LIBCURL_LDAP$/,/^config /d' "$FILE"
+          SDK_URL="https://downloads.openwrt.org/releases/24.10.0/targets/mediatek/filogic/openwrt-sdk-24.10.0-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64.tar.zst"
 
-            # Печатаем результат, чтобы удостовериться в удалении
-            grep -n "config LIBCURL_LDAP" -A6 "$FILE" || echo "LIBCURL_LDAP удалён"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends zstd ca-certificates curl rsync file
+
+          mkdir -p sdk
+          cd sdk
+
+          curl -L "$SDK_URL" -o sdk.tar.zst
+          tar --use-compress-program=unzstd -xf sdk.tar.zst
+          rm -f sdk.tar.zst
+
+          SDK_DIR="$(find . -maxdepth 1 -type d -name 'openwrt-sdk-*' | head -n1)"
+          test -n "$SDK_DIR"
+          cd "$SDK_DIR"
+
+          # Подключаем репозиторий как feed "action"
+          cp -f feeds.conf.default feeds.conf
+          echo "src-link action $GITHUB_WORKSPACE" >> feeds.conf
+
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+          # FIX: убираем рекурсивную зависимость curl/libcurl LDAP
+          # Ошибка выглядит так:
+          #   recursive dependency detected: PACKAGE_libcurl depends on LIBCURL_LDAP ...
+          # Нам надо выкинуть строку "depends on LIBCURL_LDAP" из config PACKAGE_libcurl.
+          CURL_CFG="feeds/packages/net/curl/Config.in"
+          test -f "$CURL_CFG"
+          grep -n "LIBCURL_LDAP" "$CURL_CFG" || true
+          sed -i 's/[[:space:]]*depends on LIBCURL_LDAP[[:space:]]*$//' "$CURL_CFG"
+          grep -n "depends on LIBCURL_LDAP" "$CURL_CFG" && (echo "LDAP dep still present"; exit 1) || true
+
+          make defconfig
+
+          # Собираем пакет из feed action
+          make package/fptn/compile V=s
+
+          # Кладём ipk в корень, чтобы upload-artifact точно нашёл
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+          find bin/packages -type f \( -name 'fptn_*.ipk' -o -name 'fptn-client-cli_*.ipk' \) -print -exec cp -f {} "$GITHUB_WORKSPACE/artifacts/" \;
 
       - uses: actions/upload-artifact@v4
         with:
           name: fptn-ipk
-          path: bin/packages/**/fptn_*.ipk
+          path: artifacts/*.ipk
