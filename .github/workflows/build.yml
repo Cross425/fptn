@@ -16,6 +16,7 @@ jobs:
         with:
           sdk_url: https://downloads.openwrt.org/releases/24.10.0/targets/mediatek/filogic/openwrt-sdk-24.10.0-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64.tar.zst
           package: fptn
+          make_flags: V=s
           config: |
             CONFIG_LIBCURL_LDAP=n
 
