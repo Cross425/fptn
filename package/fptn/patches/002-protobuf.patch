@@ -5,7 +5,7 @@
      find_package(OpenSSL REQUIRED)
  endif()
 +
-+# OpenWrt: use system Protobuf (libprotobuf + protoc)
++# OpenWrt: use system Protobuf (protoc + runtime)
 +find_package(Protobuf REQUIRED)
 +include_directories(${Protobuf_INCLUDE_DIRS})
 +link_libraries(${Protobuf_LIBRARIES})
