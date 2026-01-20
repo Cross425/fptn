@@ -3,10 +3,11 @@ USE_PROCD=1
 START=90
 STOP=10
 
-PROG=/usr/sbin/fptn
+PROG=/usr/bin/fptn-client-cli
 CONF=/etc/fptn/token.json
 
 start_service() {
+	[ -x "$PROG" ] || exit 1
 	procd_open_instance
 	procd_set_param command "$PROG" --token "$CONF"
 	procd_set_param respawn 3600 5 5
