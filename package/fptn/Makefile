@@ -25,7 +25,7 @@ define Package/fptn
 endef
 
 define Package/fptn/description
-fptn client (built from upstream git).
+fptn client (OpenWrt build, FetchContent disabled).
 endef
 
 CMAKE_OPTIONS += \
