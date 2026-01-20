@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 3.16)
 project(fptn VERSION "${FPTN_VERSION}" LANGUAGES CXX)
 
+find_package(OpenSSL REQUIRED)
+
+# FPTN_OPENWRT_OPENSSL_HELPER
+# Ensure OpenSSL include dirs are available in cross builds
+include_directories(${OPENSSL_INCLUDE_DIR})
+
+
 # project settings
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 20)
