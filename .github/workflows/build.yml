@@ -1,4 +1,4 @@
-name: build-ipk
+name: build-ipk-v3
 
 on:
   workflow_dispatch:
@@ -8,10 +8,16 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Prepare vendor deps
+        run: |
+          mkdir -p package/fptn/vendor
+          cd package/fptn/vendor
+          git clone https://github.com/tobiaslocker/base64.git
+          git clone https://github.com/batchar2/NTP-client.git ntp-client
+          git clone https://github.com/LaKabane/libtuntap.git
 
       - name: Install deps
         run: |
@@ -22,17 +28,16 @@ jobs:
 
       - name: Download OpenWrt SDK
         run: |
-          set -eux
           SDK_URL="https://downloads.openwrt.org/releases/24.10.0/targets/mediatek/filogic/openwrt-sdk-24.10.0-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64.tar.zst"
           wget -O sdk.tar.zst "$SDK_URL"
           tar --use-compress-program=unzstd -xf sdk.tar.zst
           mv openwrt-sdk-* openwrt-sdk
 
-      - name: Add package to SDK
+      - name: Add package
         run: |
           cp -r package/fptn openwrt-sdk/package/
 
-      - name: Build package
+      - name: Build
         working-directory: openwrt-sdk
         run: |
           ./scripts/feeds update -a
@@ -40,13 +45,12 @@ jobs:
           make defconfig
           make package/fptn/{clean,compile} V=s -j$(nproc)
 
-      - name: Collect artifacts
+      - name: Collect
         run: |
           mkdir -p artifacts
           find openwrt-sdk/bin/packages -name "*fptn*.ipk" -exec cp {} artifacts/ \;
 
-      - name: Upload ipk
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: fptn-ipk
           path: artifacts/*.ipk
