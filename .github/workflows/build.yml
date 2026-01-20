@@ -1,4 +1,4 @@
-name: build-openwrt-ipk
+name: build-ipk
 
 on:
   workflow_dispatch:
@@ -7,57 +7,46 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    runs-on: ubuntu-22.04
 
-      - name: Install build deps (Ubuntu 24.04)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends             build-essential clang flex bison g++ gawk gcc-multilib gettext git libncurses-dev             libssl-dev python3 python3-venv python3-pip python-is-python3             rsync unzip zlib1g-dev file wget ca-certificates xz-utils zstd
+          sudo apt-get install -y build-essential clang flex bison g++ gawk \
+            gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev \
+            python3 python3-distutils rsync unzip zlib1g-dev file wget
 
-      - name: Download OpenWrt SDK (24.10.0, mediatek/filogic)
+      - name: Download OpenWrt SDK
         run: |
           set -eux
           SDK_URL="https://downloads.openwrt.org/releases/24.10.0/targets/mediatek/filogic/openwrt-sdk-24.10.0-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64.tar.zst"
-          wget -qO sdk.tar.zst "$SDK_URL"
-          tar --zstd -xf sdk.tar.zst
-          SDK_DIR="$(ls -d openwrt-sdk-24.10.0-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64)"
-          echo "SDK_DIR=$SDK_DIR" >> $GITHUB_ENV
+          wget -O sdk.tar.zst "$SDK_URL"
+          tar --use-compress-program=unzstd -xf sdk.tar.zst
+          mv openwrt-sdk-* openwrt-sdk
 
-      - name: Prepare SDK (feeds + curl LDAP loop fix)
+      - name: Add package to SDK
         run: |
-          set -eux
-          cd "$SDK_DIR"
+          cp -r package/fptn openwrt-sdk/package/
+
+      - name: Build package
+        working-directory: openwrt-sdk
+        run: |
           ./scripts/feeds update -a
           ./scripts/feeds install -a
-
-          # Copy OpenWrt package from this repo into SDK
-          rm -rf package/fptn
-          cp -a "$GITHUB_WORKSPACE/package/fptn" package/fptn
-
-          # Fix Kconfig recursion: LIBCURL_LDAP <-> PACKAGE_libcurl
-          FILE="feeds/packages/net/curl/Config.in"
-          test -f "$FILE"
-          sed -i '/^config LIBCURL_LDAP$/,/^config / s/^[[:space:]]*depends on PACKAGE_libcurl.*/\tdepends on BROKEN/' "$FILE"
-
           make defconfig
+          make package/fptn/{clean,compile} V=s -j$(nproc)
 
-      - name: Build only fptn package
+      - name: Collect artifacts
         run: |
-          set -eux
-          cd "$SDK_DIR"
-          make package/fptn/{clean,compile} V=s -j"$(nproc)"
-          echo "=== Built IPK files (all) ==="
-          find bin -type f -name "*.ipk" -print || true
-          echo "=== Built IPK files (fptn) ==="
-          find bin -type f -name "*fptn*.ipk" -print || true
+          mkdir -p artifacts
+          find openwrt-sdk/bin/packages -name "*fptn*.ipk" -exec cp {} artifacts/ \;
 
       - name: Upload ipk
         uses: actions/upload-artifact@v4
         with:
           name: fptn-ipk
-          path: |
-            **/bin/packages/**/*.ipk
-            **/bin/targets/**/*.ipk
-          if-no-files-found: error
+          path: artifacts/*.ipk
