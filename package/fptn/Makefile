@@ -5,7 +5,7 @@ PKG_VERSION:=git
 PKG_RELEASE:=3
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://github.com/batchar2/fptn.git
+PKG_SOURCE_URL:=https://github.com/Cross425/fptn.git
 PKG_SOURCE_VERSION:=HEAD
 PKG_MIRROR_HASH:=skip
 
