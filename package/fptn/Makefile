@@ -6,7 +6,7 @@ PKG_RELEASE:=3
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/Cross425/fptn.git
-PKG_SOURCE_VERSION:=a4634d4
+PKG_SOURCE_VERSION:=bf92d82
 PKG_MIRROR_HASH:=skip
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
@@ -18,7 +18,7 @@ define Package/fptn
   SECTION:=net
   CATEGORY:=Network
   TITLE:=fptn client (OpenWrt)
-  DEPENDS:=+libstdcpp +libpthread +librt
+  DEPENDS:=+libstdcpp +libpthread +librt +libopenssl
 endef
 
 CMAKE_OPTIONS += -DCMAKE_BUILD_TYPE=Release -DFPTN_NO_FETCHCONTENT=ON -DFPTN_DISABLE_WERROR=ON
