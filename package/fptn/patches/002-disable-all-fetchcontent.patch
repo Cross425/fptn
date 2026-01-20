@@ -1,5 +1,5 @@
---- a/CMakeLists.txt
-+++ b/CMakeLists.txt
+--- a/fptn/CMakeLists.txt
++++ b/fptn/CMakeLists.txt
 @@
 -option(FPTN_NO_FETCHCONTENT "Disable FetchContent (OpenWrt)" OFF)
 -
