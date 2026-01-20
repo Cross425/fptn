@@ -25,16 +25,18 @@ jobs:
           SDK_DIR="$(ls -d openwrt-sdk-24.10.0-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64)"
           echo "SDK_DIR=$SDK_DIR" >> $GITHUB_ENV
 
-      - name: Prepare SDK and patch curl LDAP loop
+      - name: Prepare SDK (feeds + curl LDAP loop fix)
         run: |
           set -eux
           cd "$SDK_DIR"
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
+          # Copy OpenWrt package from this repo into SDK
           rm -rf package/fptn
           cp -a "$GITHUB_WORKSPACE/package/fptn" package/fptn
 
+          # Fix Kconfig recursion: LIBCURL_LDAP <-> PACKAGE_libcurl
           FILE="feeds/packages/net/curl/Config.in"
           test -f "$FILE"
           sed -i '/^config LIBCURL_LDAP$/,/^config / s/^[[:space:]]*depends on PACKAGE_libcurl.*/\tdepends on BROKEN/' "$FILE"
@@ -46,9 +48,16 @@ jobs:
           set -eux
           cd "$SDK_DIR"
           make package/fptn/{clean,compile} V=s -j"$(nproc)"
+          echo "=== Built IPK files (all) ==="
+          find bin -type f -name "*.ipk" -print || true
+          echo "=== Built IPK files (fptn) ==="
+          find bin -type f -name "*fptn*.ipk" -print || true
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload ipk
+        uses: actions/upload-artifact@v4
         with:
           name: fptn-ipk
           path: |
-            openwrt-sdk-24.10.0-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64/bin/packages/**/fptn*.ipk
+            **/bin/packages/**/*.ipk
+            **/bin/targets/**/*.ipk
+          if-no-files-found: error
