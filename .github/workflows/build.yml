@@ -1,4 +1,4 @@
-name: build-ipk-v3
+name: build-ipk-v4
 
 on:
   workflow_dispatch:
@@ -10,14 +10,6 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-
-      - name: Prepare vendor deps
-        run: |
-          mkdir -p package/fptn/vendor
-          cd package/fptn/vendor
-          git clone https://github.com/tobiaslocker/base64.git
-          git clone https://github.com/batchar2/NTP-client.git ntp-client
-          git clone https://github.com/LaKabane/libtuntap.git
 
       - name: Install deps
         run: |
