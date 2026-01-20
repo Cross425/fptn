@@ -2,20 +2,16 @@ cmake_minimum_required(VERSION 3.16)
 project(fptn VERSION "${FPTN_VERSION}" LANGUAGES CXX)
 
 find_package(OpenSSL REQUIRED)
-
-# FPTN_OPENWRT_OPENSSL_HELPER
-# Ensure OpenSSL include dirs are available in cross builds
 include_directories(${OPENSSL_INCLUDE_DIR})
-
 
 # project settings
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-option(FPTN_NO_FETCHCONTENT "Disable FetchContent (OpenWrt/offline builds)" OFF)
-option(FPTN_DISABLE_WERROR "Disable -Werror / warnings-as-errors" OFF)
 
+option(FPTN_NO_FETCHCONTENT \"Disable FetchContent (OpenWrt/offline builds)\" OFF)
+option(FPTN_DISABLE_WERROR \"Disable -Werror / warnings-as-errors\" OFF)
 if (APPLE)
   set(CMAKE_CXX_STANDARD 20)
 else ()
@@ -25,9 +21,6 @@ else ()
   set(CMAKE_INCLUDE_CURRENT_DIR ON)
   set(CMAKE_CXX_STANDARD 20)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-option(FPTN_NO_FETCHCONTENT "Disable FetchContent (OpenWrt/offline builds)" OFF)
-option(FPTN_DISABLE_WERROR "Disable -Werror / warnings-as-errors" OFF)
   if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-command-line-argument")
   endif ()
@@ -90,40 +83,27 @@ set(FPTN_SERVER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/src/fptn-server")
 
 # --- depends ---
 if(NOT FPTN_NO_FETCHCONTENT)
-  include(depends/cmake/FetchBase64.cmake)
-  include(depends/cmake/NtpClient.cmake)
-  if (NOT FPTN_BUILD_ONLY_FPTN_LIB)
-      if (APPLE OR UNIX)
-          include(depends/cmake/FetchLibTunTap.cmake)
-      elseif (WIN32)
-          include(depends/cmake/FetchWintun.cmake)
-      else ()
-          message(FATAL_ERROR "Unsupported platform")
-      endif ()
-  endif ()
+include(depends/cmake/FetchBase64.cmake)
+include(depends/cmake/NtpClient.cmake)
+if (NOT FPTN_BUILD_ONLY_FPTN_LIB)
+    if (APPLE OR UNIX)
+        include(depends/cmake/FetchLibTunTap.cmake)
+    elseif (WIN32)
+        include(depends/cmake/FetchWintun.cmake)
 else()
-  message(STATUS "Offline/OpenWrt build: FetchContent disabled, using vendor/ deps")
-  # Expect these directories to be present (e.g., provided by packaging/CI)
-  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/vendor/base64/CMakeLists.txt")
-    add_subdirectory(vendor/base64)
-  endif()
-  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/vendor/ntp-client/CMakeLists.txt")
-    add_subdirectory(vendor/ntp-client)
-  endif()
-  if (NOT FPTN_BUILD_ONLY_FPTN_LIB)
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/vendor/libtuntap/CMakeLists.txt")
-      add_subdirectory(vendor/libtuntap)
-    endif()
-  endif()
+  message(STATUS "OpenWrt/offline build: FetchContent disabled")
 endif()
+    else ()
+        message(FATAL_ERROR "Unsupported platform")
+    endif ()
+endif ()
 
 # --- project ---
-
 if(FPTN_DISABLE_WERROR)
     set(CMAKE_COMPILE_WARNING_AS_ERROR OFF)
 else()
-    set(CMAKE_COMPILE_WARNING_AS_ERROR ON) # check all warnings!
-endif()
+    set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
+endif() # check all warnings!
 if (MSVC)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
     add_compile_options(/W4 /WX)
