@@ -1,0 +1,26 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@
+-option(FPTN_NO_FETCHCONTENT "Disable FetchContent (OpenWrt)" OFF)
+-
+-if(FPTN_NO_FETCHCONTENT)
+-  message(STATUS "Building for OpenWrt: FetchContent disabled")
+-  add_subdirectory(vendor/base64)
+-  add_subdirectory(vendor/ntp-client)
+-  add_subdirectory(vendor/libtuntap)
+-else()
+-
+-include(depends/cmake/FetchBase64.cmake)
+-include(depends/cmake/NtpClient.cmake)
+-include(depends/cmake/FetchLibTunTap.cmake)
+-endif()
++option(FPTN_NO_FETCHCONTENT "Disable FetchContent (OpenWrt)" OFF)
++
++if(NOT FPTN_NO_FETCHCONTENT)
++  include(depends/cmake/FetchBase64.cmake)
++  include(depends/cmake/NtpClient.cmake)
++  include(depends/cmake/FetchLibTunTap.cmake)
++  include(depends/cmake/FetchWintun.cmake)
++else()
++  message(STATUS "OpenWrt build: FetchContent fully disabled")
++endif()
