@@ -21,7 +21,7 @@ define Package/fptn
   DEPENDS:=+libstdcpp +libpthread +librt
 endef
 
-CMAKE_OPTIONS += -DCMAKE_BUILD_TYPE=Release -DFPTN_NO_FETCHCONTENT=ON
+CMAKE_OPTIONS += -DCMAKE_BUILD_TYPE=Release -DFPTN_NO_FETCHCONTENT=ON -DFPTN_DISABLE_WERROR=ON
 
 define Build/Prepare
 	$(call Build/Prepare/Default)
