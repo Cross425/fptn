@@ -1,15 +1,9 @@
+# OpenWrt package Makefile (fix OpenSSL detection)
+
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=fptn
-PKG_VERSION:=git
-PKG_RELEASE:=3
-
-PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://github.com/Cross425/fptn.git
-PKG_SOURCE_VERSION:=a4634d4
-PKG_MIRROR_HASH:=skip
-
-PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
+PKG_RELEASE:=1
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
@@ -17,23 +11,10 @@ include $(INCLUDE_DIR)/cmake.mk
 define Package/fptn
   SECTION:=net
   CATEGORY:=Network
-  TITLE:=fptn client (OpenWrt)
-  DEPENDS:=+libstdcpp +libpthread +librt +libopenssl3
+  TITLE:=fptn
+  DEPENDS:=+libopenssl3
 endef
 
-CMAKE_OPTIONS += -DCMAKE_BUILD_TYPE=Release -DFPTN_NO_FETCHCONTENT=ON -DFPTN_DISABLE_WERROR=ON -DFPTN_DISABLE_OPENSSL_KEYLOG=ON
-
-define Build/Prepare
-	$(call Build/Prepare/Default)
-	cp -r ./vendor $(PKG_BUILD_DIR)/
-	@echo "=== CHECK VENDOR IN PKG_BUILD_DIR ==="
-	@ls -la $(PKG_BUILD_DIR)/vendor || true
-	@find $(PKG_BUILD_DIR)/vendor -maxdepth 2 -type f | head -n 50 || true
-endef
-
-define Package/fptn/install
-	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/fptn $(1)/usr/bin/fptn || true
-endef
+CMAKE_OPTIONS +=   -DFPTN_NO_FETCHCONTENT=ON   -DFPTN_DISABLE_WERROR=ON   -DFPTN_DISABLE_OPENSSL_KEYLOG=ON   -DOPENSSL_ROOT_DIR=$(STAGING_DIR)/usr   -DOPENSSL_INCLUDE_DIR=$(STAGING_DIR)/usr/include   -DOPENSSL_CRYPTO_LIBRARY=$(STAGING_DIR)/usr/lib/libcrypto.so   -DOPENSSL_SSL_LIBRARY=$(STAGING_DIR)/usr/lib/libssl.so
 
 $(eval $(call BuildPackage,fptn))
