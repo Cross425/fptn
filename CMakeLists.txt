@@ -1,20 +1,11 @@
 cmake_minimum_required(VERSION 3.16)
 project(fptn VERSION "${FPTN_VERSION}" LANGUAGES CXX)
 
-find_package(OpenSSL REQUIRED)
-if(FPTN_DISABLE_OPENSSL_KEYLOG)
-  add_compile_definitions(FPTN_DISABLE_OPENSSL_KEYLOG)
-endif()
-
-
 # project settings
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-
-option(FPTN_NO_FETCHCONTENT \"Disable FetchContent (OpenWrt/offline builds)\" OFF)
-option(FPTN_DISABLE_WERROR \"Disable -Werror / warnings-as-errors\" OFF)
 option(FPTN_DISABLE_OPENSSL_KEYLOG \"Disable OpenSSL keylog callback\" OFF)
 if (APPLE)
   set(CMAKE_CXX_STANDARD 20)
@@ -86,39 +77,25 @@ add_definitions(-DWIN32_LEAN_AND_MEAN)
 set(FPTN_SERVER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/src/fptn-server")
 
 # --- depends ---
-if(NOT FPTN_NO_FETCHCONTENT)
-  include(depends/cmake/FetchBase64.cmake)
-endif()
+include(depends/cmake/FetchBase64.cmake)
 include(depends/cmake/NtpClient.cmake)
 if (NOT FPTN_BUILD_ONLY_FPTN_LIB)
     if (APPLE OR UNIX)
-        if(NOT FPTN_NO_FETCHCONTENT)
-  include(depends/cmake/FetchLibTunTap.cmake)
-endif()
+        include(depends/cmake/FetchLibTunTap.cmake)
     elseif (WIN32)
-        if(NOT FPTN_NO_FETCHCONTENT)
-  include(depends/cmake/FetchWintun.cmake)
-endif()
+        include(depends/cmake/FetchWintun.cmake)
     else ()
         message(FATAL_ERROR "Unsupported platform")
     endif ()
 endif ()
 
 # --- project ---
-if(FPTN_DISABLE_WERROR)
-    set(CMAKE_COMPILE_WARNING_AS_ERROR OFF)
-else()
-    set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
-endif() # check all warnings!
+set(CMAKE_COMPILE_WARNING_AS_ERROR ON) # check all warnings!
 if (MSVC)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
     add_compile_options(/W4 /WX)
 else ()
-    if(FPTN_DISABLE_WERROR)
-        add_compile_options(-Wall -pedantic -Wno-error)
-    else()
-        add_compile_options(-Wall -Werror -pedantic)
-    endif()
+    add_compile_options(-Wall -Werror -pedantic)
 endif ()
 
 # --- clang-tidy setup ---
@@ -224,17 +201,7 @@ if (NOT FPTN_BUILD_ONLY_FPTN_LIB)
     add_subdirectory(tests)
 endif ()
 
-
-# OpenWrt/offline helper: if FetchContent is disabled, try vendor/ deps if present.
-if(FPTN_NO_FETCHCONTENT)
-  message(STATUS "Offline/OpenWrt build: using vendor/ deps when available")
-  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/vendor/base64/CMakeLists.txt")
-    add_subdirectory(vendor/base64)
-  endif()
-  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/vendor/ntp-client/CMakeLists.txt")
-    add_subdirectory(vendor/ntp-client)
-  endif()
-  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/vendor/libtuntap/CMakeLists.txt")
-    add_subdirectory(vendor/libtuntap)
-  endif()
+if(FPTN_DISABLE_OPENSSL_KEYLOG)
+  # FPTN_OPENSSL_KEYLOG_COMPAT
+  add_compile_options(-include ${CMAKE_CURRENT_SOURCE_DIR}/src/compat/openssl_keylog_compat.h)
 endif()
