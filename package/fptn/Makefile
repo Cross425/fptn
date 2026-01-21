@@ -18,7 +18,7 @@ define Package/fptn
   SECTION:=net
   CATEGORY:=Network
   TITLE:=fptn client (OpenWrt)
-  DEPENDS:=+libstdcpp +libpthread +librt +libopenssl
+  DEPENDS:=+libstdcpp +libpthread +librt +libopenssl3
 endef
 
 CMAKE_OPTIONS += -DCMAKE_BUILD_TYPE=Release -DFPTN_NO_FETCHCONTENT=ON -DFPTN_DISABLE_WERROR=ON -DFPTN_DISABLE_OPENSSL_KEYLOG=ON
