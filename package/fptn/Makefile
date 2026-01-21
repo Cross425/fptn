@@ -26,6 +26,9 @@ CMAKE_OPTIONS += -DCMAKE_BUILD_TYPE=Release -DFPTN_NO_FETCHCONTENT=ON -DFPTN_DIS
 define Build/Prepare
 	$(call Build/Prepare/Default)
 	cp -r ./vendor $(PKG_BUILD_DIR)/
+	@echo "=== CHECK VENDOR IN PKG_BUILD_DIR ==="
+	@ls -la $(PKG_BUILD_DIR)/vendor || true
+	@find $(PKG_BUILD_DIR)/vendor -maxdepth 2 -type f | head -n 50 || true
 endef
 
 define Package/fptn/install
