@@ -1,0 +1,4 @@
+# Replace this file with a real FPTN client config.
+# You can generate it on your server side and copy to /etc/fptn/client.conf
+#
+# This placeholder exists so the service has a file to point at.
