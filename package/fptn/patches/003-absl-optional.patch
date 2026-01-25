@@ -1,0 +1,12 @@
+From: OpenWrt builder <builder@openwrt>
+Subject: [PATCH] protocol-lib: make absl optional
+--- a/src/fptn-protocol-lib/CMakeLists.txt
++++ b/src/fptn-protocol-lib/CMakeLists.txt
+@@ -26,7 +26,7 @@
+ endif ()
+
+-find_package(absl REQUIRED)
++find_package(absl QUIET)
+ find_package(protobuf REQUIRED)
+ find_package(OpenSSL REQUIRED)
+ find_package(spdlog REQUIRED)

@@ -1,0 +1,37 @@
+From: OpenWrt builder <builder@openwrt>
+Subject: [PATCH] cmake: make -Werror optional for OpenWrt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,6 +1,10 @@
+ cmake_minimum_required(VERSION 3.16)
+ project(fptn VERSION "${FPTN_VERSION}" LANGUAGES CXX)
++
++# OpenWrt toolchains may emit warnings that break builds with -Werror.
++option(FPTN_NO_WERROR "Disable -Werror/-WX" OFF)
+
+ # project settings
+ set(CMAKE_INCLUDE_CURRENT_DIR ON)
+@@ -90,14 +94,18 @@
+ endif ()
+
+ # --- project ---
+-set(CMAKE_COMPILE_WARNING_AS_ERROR ON) # check all warnings!
+-if (MSVC)
+-    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+-    add_compile_options(/W4 /WX)
+-else ()
+-    add_compile_options(-Wall -Werror -pedantic)
+-endif ()
++if (NOT FPTN_NO_WERROR)
++  set(CMAKE_COMPILE_WARNING_AS_ERROR ON) # check all warnings!
++  if (MSVC)
++      set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
++      add_compile_options(/W4 /WX)
++  else ()
++      add_compile_options(-Wall -Werror -pedantic)
++  endif ()
++else()
++  if (NOT MSVC)
++    add_compile_options(-Wall -pedantic)
++  endif()
++endif()
