@@ -1,0 +1,55 @@
+name: OpenWrt 24.10.5 (AX3000T) - build fptn ipk
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install host deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd curl git rsync build-essential file gawk gettext python3 unzip
+
+      - name: Download OpenWrt SDK (mediatek/filogic)
+        run: |
+          curl -L "https://downloads.openwrt.org/releases/24.10.5/targets/mediatek/filogic/openwrt-sdk-24.10.5-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64.tar.zst" -o sdk.tar.zst
+          mkdir -p sdk
+          tar --zstd -xf sdk.tar.zst -C sdk --strip-components=1
+
+      - name: Update feeds
+        run: |
+          cd sdk
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Copy package into SDK
+        run: |
+          rsync -a package/ sdk/package/
+
+      - name: Build ipk
+        run: |
+          cd sdk
+          echo "CONFIG_PACKAGE_fptn=y" >> .config
+          make defconfig
+          make package/fptn/{clean,compile} -j$(nproc) V=s
+
+      - name: Collect artifacts
+        run: |
+          cd sdk
+          mkdir -p artifacts
+          find bin/packages -type f -name "*fptn*.ipk" -print -exec cp -v {} artifacts/ \;
+          ls -la artifacts
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fptn-ipk-openwrt-24.10.5-mediatek-filogic
+          path: sdk/artifacts/*.ipk
