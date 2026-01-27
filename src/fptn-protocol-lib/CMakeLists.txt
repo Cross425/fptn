@@ -24,6 +24,7 @@ endif()
 
 find_package(absl QUIET)
 find_package(Protobuf REQUIRED)
+set(Protobuf_PROTOC_EXECUTABLE "")
 find_package(OpenSSL REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(fmt REQUIRED)
