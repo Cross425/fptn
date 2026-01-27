@@ -23,7 +23,7 @@ else()
 endif()
 
 find_package(absl QUIET)
-find_package(protobuf REQUIRED)
+find_package(Protobuf REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(fmt REQUIRED)
