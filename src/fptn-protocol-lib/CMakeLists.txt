@@ -148,7 +148,7 @@ foreach(target "${PROJECT_NAME}_static")
     ${target}
     ${Protobuf_LIBRARIES}
     ${protobuf_LIBRARIES}
-    protobuf::protobuf
+    protobuf::libprotobuf
     ZLIB::ZLIB
     Boost::boost
     Boost::nowide
