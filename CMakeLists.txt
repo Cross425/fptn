@@ -13,9 +13,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
-option(FPTN_NO_FETCHCONTENT \"Disable FetchContent (OpenWrt/offline builds)\" OFF)
-option(FPTN_DISABLE_WERROR \"Disable -Werror / warnings-as-errors\" OFF)
-option(FPTN_DISABLE_OPENSSL_KEYLOG \"Disable OpenSSL keylog callback\" OFF)
+option(FPTN_NO_FETCHCONTENT "Disable FetchContent (OpenWrt/offline builds)" OFF)
+option(FPTN_DISABLE_WERROR "Disable -Werror / warnings-as-errors" OFF)
+option(FPTN_DISABLE_OPENSSL_KEYLOG "Disable OpenSSL keylog callback" OFF)
 if (APPLE)
   set(CMAKE_CXX_STANDARD 20)
 else ()
