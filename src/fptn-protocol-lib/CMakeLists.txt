@@ -22,7 +22,7 @@ else()
   message(FATAL_ERROR "Unsupported platform")
 endif()
 
-find_package(absl REQUIRED)
+find_package(absl QUIET)
 find_package(protobuf REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(spdlog REQUIRED)
