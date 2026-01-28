@@ -29,7 +29,7 @@ define Package/fptn
   SUBMENU:=VPN
   TITLE:=FPTN VPN (client CLI)
   URL:=https://github.com/batchar2/fptn
-  DEPENDS:=+libstdcpp +libopenssl +zlib +ip-full +ca-bundle +protobuf +libprotobuf +libidn2 +re2 +spdlog +fmt +libfmt
+  DEPENDS:=+libstdcpp +libopenssl +zlib +ip-full +ca-bundle +protobuf +libprotobuf +libidn2 +re2 +spdlog +fmt +libfmt +boost +libboost-random +libboost-filesystem +libboost-locale
 endef
 
 define Package/fptn/description
