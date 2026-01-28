@@ -39,7 +39,7 @@ jobs:
           cd sdk
           echo "CONFIG_PACKAGE_fptn=y" >> .config
           make defconfig
-          make package/fptn/{clean,compile} -j$(nproc) V=s
+          make package/fptn/compile -j$(nproc) V=s
 
       - name: Collect artifacts
         run: |
