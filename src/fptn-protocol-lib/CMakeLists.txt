@@ -68,7 +68,23 @@ find_package(re2 REQUIRED)
 
 find_package(Boost REQUIRED COMPONENTS random filesystem nowide locale)
 find_package(ZLIB REQUIRED)
-find_package(nlohmann_json REQUIRED)
+# nlohmann_json: OpenWrt может не иметь nlohmann_jsonConfig.cmake, fallback на headers
+find_package(nlohmann_json QUIET)
+
+if (NOT nlohmann_json_FOUND)
+  find_path(NLOHMANN_JSON_INCLUDE_DIR nlohmann/json.hpp)
+  if (NOT NLOHMANN_JSON_INCLUDE_DIR)
+    message(FATAL_ERROR "nlohmann_json not found (no CMake config and no headers)")
+  endif()
+
+  message(STATUS "nlohmann_json: using headers from ${NLOHMANN_JSON_INCLUDE_DIR}")
+
+  add_library(nlohmann_json::nlohmann_json INTERFACE IMPORTED)
+  set_target_properties(nlohmann_json::nlohmann_json PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "${NLOHMANN_JSON_INCLUDE_DIR}"
+  )
+endif()
+
 
 if (FPTN_BUILD_ONLY_FPTN_LIB)
   # build fptnlib without pcappp
