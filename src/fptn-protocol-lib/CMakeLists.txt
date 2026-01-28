@@ -40,7 +40,8 @@ find_package(spdlog QUIET)
 if (NOT spdlog_FOUND)
   find_path(SPDLOG_INCLUDE_DIR spdlog/spdlog.h)
   if (NOT SPDLOG_INCLUDE_DIR)
-    message(FATAL_ERROR "spdlog not found (no CMake config and no headers)")
+    # Final fallback: use bundled minimal spdlog stub (vendor/spdlog/include)
+    set(SPDLOG_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/vendor/spdlog/include")
   endif()
   message(STATUS "spdlog: using header-only from ${SPDLOG_INCLUDE_DIR}")
   add_library(spdlog::spdlog INTERFACE IMPORTED)
@@ -48,21 +49,18 @@ if (NOT spdlog_FOUND)
     INTERFACE_INCLUDE_DIRECTORIES "${SPDLOG_INCLUDE_DIR}"
   )
 endif()
-# fmt: OpenWrt may not ship fmtConfig.cmake, so use a fallback.
+# fmt: OpenWrt often has no fmtConfig.cmake, use fallback to headers
 find_package(fmt QUIET)
-
 if (NOT fmt_FOUND)
   find_path(FMT_INCLUDE_DIR fmt/core.h)
-  find_library(FMT_LIBRARY NAMES fmt)
-  if (NOT FMT_INCLUDE_DIR OR NOT FMT_LIBRARY)
-    message(FATAL_ERROR "fmt not found (no CMake config and no headers/lib)")
+  if (NOT FMT_INCLUDE_DIR)
+    message(FATAL_ERROR "fmt not found (no CMake config and no headers)")
   endif()
 
-  message(STATUS "fmt: using fallback include=${FMT_INCLUDE_DIR} lib=${FMT_LIBRARY}")
+  message(STATUS "fmt: using header-only from ${FMT_INCLUDE_DIR}")
 
-  add_library(fmt::fmt UNKNOWN IMPORTED)
+  add_library(fmt::fmt INTERFACE IMPORTED)
   set_target_properties(fmt::fmt PROPERTIES
-    IMPORTED_LOCATION "${FMT_LIBRARY}"
     INTERFACE_INCLUDE_DIRECTORIES "${FMT_INCLUDE_DIR}"
   )
 endif()
