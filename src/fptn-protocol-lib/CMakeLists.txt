@@ -22,11 +22,32 @@ else()
   message(FATAL_ERROR "Unsupported platform")
 endif()
 
+# NTP-client is provided via depends/cmake/NtpClient.cmake.
+# In OpenWrt/offline builds it may be disabled; link only if the target exists.
+set(NTP_CLIENT_LIB "")
+if (TARGET ntp_client)
+  set(NTP_CLIENT_LIB ntp_client)
+else()
+  message(STATUS "ntp_client target not present: building without NTP client support")
+  add_compile_definitions(FPTN_DISABLE_NTP)
+endif()
+
 find_package(absl QUIET)
 set(Protobuf_PROTOC_EXECUTABLE "" CACHE FILEPATH "" FORCE)
 find_package(Protobuf REQUIRED)
 find_package(OpenSSL REQUIRED)
-find_package(spdlog REQUIRED)
+find_package(spdlog QUIET)
+if (NOT spdlog_FOUND)
+  find_path(SPDLOG_INCLUDE_DIR spdlog/spdlog.h)
+  if (NOT SPDLOG_INCLUDE_DIR)
+    message(FATAL_ERROR "spdlog not found (no CMake config and no headers)")
+  endif()
+  message(STATUS "spdlog: using header-only from ${SPDLOG_INCLUDE_DIR}")
+  add_library(spdlog::spdlog INTERFACE IMPORTED)
+  set_target_properties(spdlog::spdlog PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "${SPDLOG_INCLUDE_DIR}"
+  )
+endif()
 find_package(fmt REQUIRED)
 find_package(re2 REQUIRED)
 
@@ -160,7 +181,7 @@ foreach(target "${PROJECT_NAME}_static")
     nlohmann_json::nlohmann_json
     spdlog::spdlog
     fmt::fmt
-    ntp_client
+    ${NTP_CLIENT_LIB}
     re2::re2
     ${PCAP_LIB}
     ${LIBIDN2_LIB}
