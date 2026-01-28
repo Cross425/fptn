@@ -23,7 +23,7 @@ else()
 endif()
 
 find_package(absl QUIET)
-set(Protobuf_PROTOC_EXECUTABLE "") 
+set(Protobuf_PROTOC_EXECUTABLE "" CACHE FILEPATH "" FORCE)
 find_package(Protobuf REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(spdlog REQUIRED)
