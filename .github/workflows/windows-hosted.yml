@@ -1,0 +1,90 @@
+name: Windows build (GitHub-hosted)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+
+jobs:
+  build_windows:
+    runs-on: windows-latest
+
+    env:
+      BUILD_TYPE: Release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build tools
+        shell: powershell
+        run: |
+          python -m pip install --upgrade pip
+          pip install "conan==2.22.2"
+          # Ensure Ninja is available (optional). CMake + VS generator also works without Ninja.
+          choco install ninja -y
+
+      - name: Cache Conan
+        uses: actions/cache@v4
+        with:
+          path: C:\Users\runneradmin\.conan2
+          key: conan2-${{ runner.os }}-${{ hashFiles('**/conanfile.*', '**/conan.lock', '**/profiles/**') }}
+          restore-keys: |
+            conan2-${{ runner.os }}-
+
+      - name: Detect Conan profile
+        shell: powershell
+        run: |
+          conan profile detect --force
+
+      - name: Conan install
+        shell: powershell
+        run: |
+          conan install . --output-folder=build --build=missing -o with_gui_client=True --settings build_type=$env:BUILD_TYPE -s compiler.cppstd=17
+
+      - name: Configure CMake (VS 2022)
+        shell: powershell
+        run: |
+          cmake -S . -B build -G "Visual Studio 17 2022" -DCMAKE_TOOLCHAIN_FILE="build/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=$env:BUILD_TYPE
+
+      - name: Build
+        shell: powershell
+        run: |
+          cmake --build build --config $env:BUILD_TYPE --parallel
+
+      - name: Build installer
+        shell: powershell
+        run: |
+          cmake --build build --config $env:BUILD_TYPE --target build-installer
+
+      - name: Collect artifacts
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+
+          # Installer (if produced at repo root by target)
+          Get-ChildItem -Path . -Filter "FptnClientInstaller-*-windows-x64_x86.exe" -ErrorAction SilentlyContinue | `
+            ForEach-Object { Copy-Item $_.FullName -Destination out -Force }
+
+          # Common locations for built binaries
+          Get-ChildItem -Recurse -Path build -Include *.exe,*.dll -ErrorAction SilentlyContinue | `
+            Where-Object { $_.FullName -match "\\\\$env:BUILD_TYPE\\\\" } | `
+            ForEach-Object { Copy-Item $_.FullName -Destination out -Force }
+
+          if (-not (Get-ChildItem -Path out -ErrorAction SilentlyContinue)) {
+            throw "No artifacts found to upload."
+          }
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fptn-windows-${{ env.BUILD_TYPE }}
+          path: out/**
