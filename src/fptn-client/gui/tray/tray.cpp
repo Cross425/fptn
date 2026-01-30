@@ -88,6 +88,11 @@ TrayApp::TrayApp(const SettingsModelPtr& settings, QObject* parent)
 #error "Unsupported system!"
 #endif
 
+// Android TV style mini widget (overlay)
+mini_widget_ = new MiniWidget(this, settings_, nullptr);
+mini_widget_->hide();
+
+
 #if __linux__
   connect(tray_icon_, &QSystemTrayIcon::activated,
       [this](QSystemTrayIcon::ActivationReason reason) {
@@ -468,6 +473,7 @@ void TrayApp::onConnectToServer() {
     connection_state_ = ConnectionState::Connecting;
     UpdateTrayMenu();
   }
+  ShowMiniWidget(true);
   emit connecting();
 }
 
@@ -509,6 +515,13 @@ void TrayApp::handleDefaultState() {
     }
   }
   UpdateTrayMenu();
+if (mini_widget_) {
+  mini_widget_->SetConnected(false);
+  mini_widget_->SetStateText(QObject::tr("Disconnected"));
+  mini_widget_->UpdateSpeed(0, 0);
+  mini_widget_->UpdatePingTarget(QString(), 0);
+}
+
 }
 
 void TrayApp::handleConnecting() {
@@ -541,6 +554,11 @@ void TrayApp::handleConnecting() {
         });
     watcher->setFuture(future);
   }
+if (mini_widget_) {
+  mini_widget_->SetConnected(false);
+  mini_widget_->SetStateText(QObject::tr("Connecting…"));
+}
+
 }
 
 void TrayApp::handleConnected() {
@@ -551,16 +569,24 @@ void TrayApp::handleConnected() {
     connection_state_ = ConnectionState::Connected;
   }
   UpdateTrayMenu();
+if (mini_widget_) {
+  mini_widget_->SetConnected(true);
+  const QString name = QString::fromStdString(selected_server_.name);
+  const QString svc = QString::fromStdString(selected_server_.service_name);
+  const QString txt = svc.isEmpty() ? QObject::tr("Connected: %1").arg(name)
+                                    : QObject::tr("Connected: %1 (%2)").arg(name, svc);
+  mini_widget_->SetStateText(txt);
+  mini_widget_->UpdatePingTarget(QString::fromStdString(selected_server_.host), selected_server_.port);
+if (tray_icon_) {
+  const QString name = QString::fromStdString(selected_server_.name);
+  const QString svc = QString::fromStdString(selected_server_.service_name);
+  const QString msg = svc.isEmpty() ? QObject::tr("Connected to %1").arg(name)
+                                    : QObject::tr("Connected to %1 (%2)").arg(name, svc);
+  tray_icon_->showMessage(QObject::tr("FPTN"), msg, QSystemTrayIcon::Information, 5000);
+}
 
-  // User-facing notification (system tray)
-  if (tray_icon_) {
-    const QString server_name = QString::fromStdString(selected_server_.name);
-    const QString service_name =
-        QString::fromStdString(selected_server_.service_name);
-    tray_icon_->showMessage(QObject::tr("FPTN"),
-        QObject::tr("Connected: %1 (%2)").arg(server_name).arg(service_name),
-        QSystemTrayIcon::Information, 5000);
-  }
+}
+
 }
 
 void TrayApp::handleDisconnecting() {
@@ -573,6 +599,11 @@ void TrayApp::handleDisconnecting() {
     stopVpn();
   }
   emit defaultState();
+if (mini_widget_) {
+  mini_widget_->SetConnected(false);
+  mini_widget_->SetStateText(QObject::tr("Disconnecting…"));
+}
+
 }
 
 void TrayApp::handleTimer() {
@@ -601,6 +632,12 @@ void TrayApp::handleTimer() {
       } else if (speed_widget_) {
         speed_widget_->UpdateSpeed(
             vpn_client_->GetReceiveRate(), vpn_client_->GetSendRate());
+        if (mini_widget_) {
+          mini_widget_->UpdateSpeed(vpn_client_->GetReceiveRate(), vpn_client_->GetSendRate());
+          mini_widget_->SetConnected(true);
+          // Update ping target to the selected/connected server.
+          mini_widget_->UpdatePingTarget(QString::fromStdString(selected_server_.host), selected_server_.port);
+        }
       }
     }
   }
@@ -678,7 +715,83 @@ void TrayApp::stop() {
     route_manager_->Clean();
     route_manager_.reset();
   }
+}void TrayApp::ShowMiniWidget(bool show) {
+  if (!mini_widget_) return;
+  if (show) {
+    mini_widget_->RefreshServerList();
+    mini_widget_->SetConnected(IsConnected());
+    // Center near cursor for convenience.
+    const QPoint pos = QCursor::pos();
+    mini_widget_->move(pos.x() - mini_widget_->width() / 2, pos.y() - 20);
+    mini_widget_->show();
+    mini_widget_->raise();
+    mini_widget_->activateWindow();
+  } else {
+    mini_widget_->hide();
+  }
 }
+
+void TrayApp::RequestSmartConnect() {
+  SPDLOG_INFO("MiniWidget: smart connect requested");
+  smart_connect_ = true;
+  onConnectToServer();
+}
+
+void TrayApp::RequestDisconnect() {
+  SPDLOG_INFO("MiniWidget: disconnect requested");
+  onDisconnectFromServer();
+}
+
+bool TrayApp::IsConnected() const {
+  return connection_state_ == ConnectionState::Connected;
+}
+
+QString TrayApp::ConnectedServerAddress() const {
+  return connected_server_address_;
+}
+
+void TrayApp::RequestConnectFromSettings(int service_index, int server_index, bool limited_zone) {
+  SPDLOG_INFO("MiniWidget: connect requested from settings");
+  if (!settings_) {
+    smart_connect_ = true;
+    onConnectToServer();
+    return;
+  }
+
+  const auto services = settings_->Services();
+  if (service_index < 0 || service_index >= services.size()) {
+    smart_connect_ = true;
+    onConnectToServer();
+    return;
+  }
+
+  const auto& service = services[service_index];
+  const auto& list = limited_zone ? service.censored_zone_servers : service.servers;
+  if (server_index < 0 || server_index >= list.size()) {
+    smart_connect_ = true;
+    onConnectToServer();
+    return;
+  }
+
+  const auto& server = list[server_index];
+
+  fptn::utils::speed_estimator::ServerInfo cfg_server;
+  cfg_server.name = server.name.toStdString();
+  cfg_server.host = server.host.toStdString();
+  cfg_server.port = server.port;
+  cfg_server.is_using = true;
+
+  cfg_server.username = service.username.toStdString();
+  cfg_server.password = service.password.toStdString();
+  cfg_server.service_name = service.service_name.toStdString();
+  cfg_server.md5_fingerprint = server.md5_fingerprint.toStdString();
+
+  smart_connect_ = false;
+  selected_server_ = cfg_server;
+
+  onConnectToServer();
+}
+
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
 void TrayApp::OpenWebBrowser(const std::string& url) {

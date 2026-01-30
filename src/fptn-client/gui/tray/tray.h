@@ -13,7 +13,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <QAction>          // NOLINT(build/include_order)
 #include <QApplication>     // NOLINT(build/include_order)
-#include <QMenu>            // NOLINT(build/include_order)
+#include <QMenu>
+#include <QCursor>          // NOLINT(build/include_order)            // NOLINT(build/include_order)
 #include <QMouseEvent>      // NOLINT(build/include_order)
 #include <QObject>          // NOLINT(build/include_order)
 #include <QString>          // NOLINT(build/include_order)
@@ -29,6 +30,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "gui/settingsmodel/settingsmodel.h"
 #include "gui/settingswidget/settings.h"
 #include "gui/speedwidget/speedwidget.h"
+#include "gui/miniwidget/miniwidget.h"
 #include "gui/tray/tray.h"
 #include "routing/route_manager.h"
 #include "utils/speed_estimator/server_info.h"
@@ -45,6 +47,14 @@ class TrayApp : public QWidget {
  public:
   explicit TrayApp(const SettingsModelPtr& settings, QObject* parent = nullptr);
   void stop();
+// Mini widget controls (Android TV style overlay)
+void ShowMiniWidget(bool show = true);
+void RequestSmartConnect();
+void RequestDisconnect();
+void RequestConnectFromSettings(int service_index, int server_index, bool limited_zone);
+bool IsConnected() const;
+QString ConnectedServerAddress() const;
+
 
  protected:
   QString GetSystemLanguageCode() const;
@@ -107,6 +117,7 @@ class TrayApp : public QWidget {
   QAction* disconnecting_label_action_ = nullptr;
   QWidgetAction* speed_widget_action_ = nullptr;
   SpeedWidget* speed_widget_ = nullptr;
+  MiniWidget* mini_widget_ = nullptr;
   QTimer* update_timer_ = nullptr;
   ConnectionState connection_state_ = ConnectionState::None;
   QString connected_server_address_;
