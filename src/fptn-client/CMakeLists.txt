@@ -134,6 +134,8 @@ WarningsAsErrors: ''
     gui/tray/tray.cpp
     gui/speedwidget/speedwidget.h
     gui/speedwidget/speedwidget.cpp
+    gui/miniwidget/miniwidget.h
+    gui/miniwidget/miniwidget.cpp
     gui/settingswidget/settings.h
     gui/settingswidget/settings.cpp
     gui/settingsmodel/settingsmodel.h
