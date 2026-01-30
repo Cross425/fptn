@@ -551,6 +551,16 @@ void TrayApp::handleConnected() {
     connection_state_ = ConnectionState::Connected;
   }
   UpdateTrayMenu();
+
+  // User-facing notification (system tray)
+  if (tray_icon_) {
+    const QString server_name = QString::fromStdString(selected_server_.name);
+    const QString service_name =
+        QString::fromStdString(selected_server_.service_name);
+    tray_icon_->showMessage(QObject::tr("FPTN"),
+        QObject::tr("Connected: %1 (%2)").arg(server_name).arg(service_name),
+        QSystemTrayIcon::Information, 5000);
+  }
 }
 
 void TrayApp::handleDisconnecting() {
